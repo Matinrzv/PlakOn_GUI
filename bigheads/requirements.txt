@@ -1,8 +1,0 @@
-bleak==0.22.3
-customtkinter==5.2.2
-cryptography==44.0.1
-aiosqlite==0.20.0
-Pillow==11.1.0
-emoji==2.14.1
-pyperclip==1.9.0
-pyinstaller==6.11.1
