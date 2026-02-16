@@ -1,9 +1,42 @@
 import sys
-from PyQt6.QtWidgets import QApplication,QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
-app = QApplication(sys.argv)
-window = QWidget()
-window.setWindowTitle("first app with PyQt6")
-window.resize(500,500)
-window.show()
-sys.exit(app.exec())
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt6 Lesson 2 - Signals and Slots")
+        self.resize(600, 400)
+
+        self.click_count = 0
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        layout = QVBoxLayout()
+        central_widget.setLayout(layout)
+
+        self.title_label = QLabel("Lesson 2: Button Click Event")
+        self.status_label = QLabel("Button has not been clicked yet.")
+        self.click_button = QPushButton("Click Me")
+
+        self.click_button.clicked.connect(self.on_button_clicked)
+
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.click_button)
+
+    def on_button_clicked(self):
+        self.click_count += 1
+        self.status_label.setText(f"Clicked {self.click_count} time(s).")
+
+
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
