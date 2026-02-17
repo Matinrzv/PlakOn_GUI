@@ -4,6 +4,12 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QVBoxLayout,
     QWidget,
+    QComboBox,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QHBoxLayout,
+    QGridLayout
 )
 
 
@@ -19,49 +25,84 @@ class MainWindow(QMainWindow):
         self.page_layout = QVBoxLayout()
         central_widget.setLayout(self.page_layout)
 
-        # TODO 1:
-        # A form using QGridLayout with these fields:
-        # - Name (QLineEdit)
-        # - Age (QLineEdit, valid range: 1-120)
-        # - City (QComboBox with at least 4 cities)
-        # - Job (QLineEdit)
+        title = QLabel("Lesson 4 Test App")
+        self.page_layout.addWidget(title)
 
-        # TODO 2:
-        # A button row using QHBoxLayout with:
-        # - Save button
-        # - Clear button
+        form_layout = QGridLayout()
+        
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Full name")
 
-        # TODO 3:
-        # A result QLabel below buttons.
+        self.age_input = QLineEdit()
+        self.age_input.setPlaceholderText("Age (1-120)")
+        self.age_input.setMaxLength(3)
 
-        # TODO 4:
-        # Connect signals:
-        # - Save clicked -> save_profile
-        # - Clear clicked -> clear_form
-        # - textChanged for inputs -> update_save_state
+        self.city_box = QComboBox()
+        self.city_box.addItems(["Tehran","Shiraz", "Tabriz", "Mashhad", "Isfahan", "Ahvaz"])
 
-        # TODO 5:
-        # Implement validation:
-        # - Name not empty
-        # - Age must be integer in [1, 120]
-        # - Job not empty
+        self.job_input = QLineEdit()
+        self.job_input.setPlaceholderText("Job title")
 
-    def is_valid_age(self, age_text: str) -> bool:
-        # TODO: Implement age validation
-        return False
+        form_layout.addWidget(QLabel("Name:"), 0, 0)
+        form_layout.addWidget(self.name_input, 0, 1)
+        form_layout.addWidget(QLabel("Age:"), 1, 0)
+        form_layout.addWidget(self.age_input, 1, 1)
+        form_layout.addWidget(QLabel("City:"), 2, 0)
+        form_layout.addWidget(self.city_box, 2, 1)
+        form_layout.addWidget(QLabel("Job:"), 3, 0)
+        form_layout.addWidget(self.job_input, 3, 1)
+        self.page_layout.addLayout(form_layout)   
+
+        button_layout = QHBoxLayout()
+        self.save_button = QPushButton("Save")
+        self.clear_button = QPushButton("Clear")
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.clear_button)
+        self.page_layout.addLayout(button_layout)
+
+        self.result_label = QLabel("No profile submitted yet.")
+        self.page_layout.addWidget(self.result_label)
+
+        self.save_button.clicked.connect(self.save_profile)
+        self.clear_button.clicked.connect(self.clear_form)
+        self.name_input.textChanged.connect(self.update_save_state)
+        self.age_input.textChanged.connect(self.update_save_state)
+        self.job_input.textChanged.connect(self.update_save_state)
+        self.update_save_state()   
+
+    def is_valid_age(self, age_text):
+        return age_text.isdigit() and 1 <= int(age_text) <= 120
 
     def update_save_state(self):
-        # TODO: Enable save button only when all inputs are valid
-        pass
+        has_name = bool(self.name_input.text().strip())
+        has_job = bool(self.job_input.text().strip())
+        valid_age = self.is_valid_age(self.age_input.text().strip())
+        self.save_button.setEnabled(has_name and has_job and valid_age)
 
     def save_profile(self):
-        # TODO: Show final summary in result label
-        # Example: Saved: Ali, 22, Tehran, Developer
-        pass
+        name = self.name_input.text().strip()
+        age = self.age_input.text().strip()
+        city = self.city_box.currentText()
+        job = self.job_input.text().strip()
 
+        if not name:
+            self.result_label.setText("Please enter a valid name.")
+            return
+        if not self.is_valid_age(age):
+            self.result_label.setText("Please enter a valid age (1-120).")
+            return
+        if not job:
+            self.result_label.setText("Please enter a valid job title.")
+            return
+
+        self.result_label.setText(f"Saved: {name}, {age}, {city}, {job}")
+      
     def clear_form(self):
-        # TODO: Clear all fields and reset result label
-        pass
+        self.name_input.clear()
+        self.age_input.clear()
+        self.job_input.clear()
+        self.city_box.setCurrentIndex(0)
+        self.result_label.setText("No profile submitted yet.")
 
 
 def main():
