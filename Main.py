@@ -1,6 +1,9 @@
 import sys
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
+    QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -13,99 +16,96 @@ from PyQt6.QtWidgets import (
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PyQt6 Lesson 3 - QLineEdit")
-        self.resize(600, 400)
-
-        self.click_count = 0
+        self.setWindowTitle("PyQt6 Lesson 4 - Layouts")
+        self.resize(700, 420)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        layout = QVBoxLayout()
-        central_widget.setLayout(layout)
+        page_layout = QVBoxLayout()
+        central_widget.setLayout(page_layout)
 
-        self.title_label = QLabel("Lesson 3: QLineEdit and Input Validation")
-        self.status_label = QLabel("Button has not been clicked yet.")
-        self.click_button = QPushButton("Click Me")
-        self.click_button_reset = QPushButton("Reset!")
-        self.input_label = QLabel("Enter your name:")
+        title = QLabel("Lesson 4: QGridLayout + QHBoxLayout")
+        subtitle = QLabel("Build a clean profile form with proper layouting.")
+        page_layout.addWidget(title)
+        page_layout.addWidget(subtitle)
+
+        form_layout = QGridLayout()
+
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Type your name...")
-        self.name_input.setMaxLength(30)
-        self.input_label_for_age = QLabel("Enter your age:")
+        self.name_input.setPlaceholderText("Full name")
+
         self.age_input = QLineEdit()
-        self.age_input.setPlaceholderText("Type your age...")
+        self.age_input.setPlaceholderText("Age (1-120)")
         self.age_input.setMaxLength(3)
-        self.submit_button = QPushButton("Submit Name and Age")
-        self.clear_button = QPushButton("Clear!")
-        self.name_result_label = QLabel("No data submitted yet.")
 
-        self.click_button.clicked.connect(self.on_button_clicked)
-        self.click_button_reset.clicked.connect(self.on_button_clicked_to_reset)
-        self.name_input.textChanged.connect(self.on_name_text_changed)
-        self.name_input.returnPressed.connect(self.focus_age_input)
-        self.submit_button.clicked.connect(self.submit_name)
-        self.clear_button.clicked.connect(self.clearButton)
-        self.name_input.textChanged.connect(self.update_submit_button_state)
-        self.age_input.textChanged.connect(self.update_submit_button_state)
+        self.city_box = QComboBox()
+        self.city_box.addItems(["Tehran", "Shiraz", "Tabriz", "Mashhad", "Isfahan"])
 
-        layout.addWidget(self.title_label)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.click_button)
-        layout.addWidget(self.click_button_reset)
-        layout.addSpacing(20)
-        layout.addWidget(self.input_label)
-        layout.addWidget(self.name_input)
-        layout.addWidget(self.input_label_for_age)
-        layout.addWidget(self.age_input)
-        layout.addWidget(self.submit_button)
-        layout.addWidget(self.clear_button)
-        layout.addWidget(self.name_result_label)
-        self.update_submit_button_state()
+        self.job_input = QLineEdit()
+        self.job_input.setPlaceholderText("Job title")
 
-    def on_button_clicked(self):
-        self.click_count += 1
-        self.setWindowTitle(f"Clicks: {self.click_count}")
-        self.status_label.setText(f"Clicked {self.click_count} time(s).")
-        if self.click_count == 10:
-            self.status_label.setText("Great! 10 clicks reached.")
+        form_layout.addWidget(QLabel("Name:"), 0, 0)
+        form_layout.addWidget(self.name_input, 0, 1)
+        form_layout.addWidget(QLabel("Age:"), 1, 0)
+        form_layout.addWidget(self.age_input, 1, 1)
+        form_layout.addWidget(QLabel("City:"), 2, 0)
+        form_layout.addWidget(self.city_box, 2, 1)
+        form_layout.addWidget(QLabel("Job:"), 3, 0)
+        form_layout.addWidget(self.job_input, 3, 1)
+        page_layout.addLayout(form_layout)
 
-    def on_button_clicked_to_reset(self):
-        self.click_count = 0
-        self.setWindowTitle("Clicks: 0")
-        self.status_label.setText(f"Clicked {self.click_count} time(s).")
+        button_layout = QHBoxLayout()
+        self.save_button = QPushButton("Save")
+        self.clear_button = QPushButton("Clear")
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.clear_button)
+        page_layout.addLayout(button_layout)
 
-    def on_name_text_changed(self, text):
-        cleaned_text = text.strip()
-        if cleaned_text:
-            self.name_result_label.setText(f"Typing: {cleaned_text}")
-        else:
-            self.name_result_label.setText("No data submitted yet.")
+        self.result_label = QLabel("No profile submitted yet.")
+        page_layout.addWidget(self.result_label)
 
-    def submit_name(self):
-        user_name = self.name_input.text().strip()
-        user_age = self.age_input.text().strip()
-        if not user_name:
-            self.name_result_label.setText("Please enter a valid name.")
+        self.save_button.clicked.connect(self.save_profile)
+        self.clear_button.clicked.connect(self.clear_form)
+        self.name_input.textChanged.connect(self.update_save_state)
+        self.age_input.textChanged.connect(self.update_save_state)
+        self.job_input.textChanged.connect(self.update_save_state)
+        self.update_save_state()
+
+    def is_valid_age(self, age_text):
+        return age_text.isdigit() and 1 <= int(age_text) <= 120
+
+    def update_save_state(self):
+        has_name = bool(self.name_input.text().strip())
+        has_job = bool(self.job_input.text().strip())
+        valid_age = self.is_valid_age(self.age_input.text().strip())
+        self.save_button.setEnabled(has_name and has_job and valid_age)
+
+    def save_profile(self):
+        name = self.name_input.text().strip()
+        age = self.age_input.text().strip()
+        city = self.city_box.currentText()
+        job = self.job_input.text().strip()
+
+        if not name:
+            self.result_label.setText("Please enter a valid name.")
             return
-        if not user_age.isdigit() or not (1 <= int(user_age) <= 120):
-            self.name_result_label.setText("Please enter a valid age (1-120).")
+        if not self.is_valid_age(age):
+            self.result_label.setText("Please enter a valid age (1-120).")
             return
-        self.name_result_label.setText(f"Hello {user_name}, age {user_age}.")
+        if not job:
+            self.result_label.setText("Please enter a valid job title.")
+            return
 
-    def focus_age_input(self):
-        self.age_input.setFocus()
+        self.result_label.setText(f"Saved: {name}, {age}, {city}, {job}")
 
-    def clearButton(self):
+    def clear_form(self):
         self.name_input.clear()
         self.age_input.clear()
-        self.name_result_label.setText("No data submitted yet.")
+        self.job_input.clear()
+        self.city_box.setCurrentIndex(0)
+        self.result_label.setText("No profile submitted yet.")
 
-    def update_submit_button_state(self):
-        user_name = self.name_input.text().strip()
-        user_age = self.age_input.text().strip()
-        is_valid_age = user_age.isdigit() and (1 <= int(user_age) <= 120) if user_age else False
-        self.submit_button.setEnabled(bool(user_name) and is_valid_age)
 
 def main():
     app = QApplication(sys.argv)
