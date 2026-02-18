@@ -1,110 +1,131 @@
 import sys
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
-    QComboBox,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
+    QFileDialog,
     QMainWindow,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
+    QMessageBox,
+    QTextEdit,
 )
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PyQt6 Lesson 4 - Layouts")
-        self.resize(700, 420)
+        self.setWindowTitle("PyQt6 Lesson 5 - Menus and Toolbar")
+        self.resize(800, 500)
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        self.editor = QTextEdit()
+        self.setCentralWidget(self.editor)
 
-        page_layout = QVBoxLayout()
-        central_widget.setLayout(page_layout)
+        self.current_path = None
 
-        title = QLabel("Lesson 4: QGridLayout + QHBoxLayout")
-        subtitle = QLabel("Build a clean profile form with proper layouting.")
-        page_layout.addWidget(title)
-        page_layout.addWidget(subtitle)
+        self._build_actions()
+        self._build_menus()
+        self._build_toolbar()
+        self.statusBar().showMessage("Ready")
 
-        form_layout = QGridLayout()
+        self.editor.textChanged.connect(self.on_text_changed)
 
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Full name")
+    def _build_actions(self):
+        self.new_action = QAction("New", self)
+        self.new_action.setShortcut("Ctrl+N")
+        self.new_action.triggered.connect(self.new_file)
 
-        self.age_input = QLineEdit()
-        self.age_input.setPlaceholderText("Age (1-120)")
-        self.age_input.setMaxLength(3)
+        self.open_action = QAction("Open...", self)
+        self.open_action.setShortcut("Ctrl+O")
+        self.open_action.triggered.connect(self.open_file)
 
-        self.city_box = QComboBox()
-        self.city_box.addItems(["Tehran", "Shiraz", "Tabriz", "Mashhad", "Isfahan"])
+        self.save_action = QAction("Save", self)
+        self.save_action.setShortcut("Ctrl+S")
+        self.save_action.triggered.connect(self.save_file)
 
-        self.job_input = QLineEdit()
-        self.job_input.setPlaceholderText("Job title")
+        self.save_as_action = QAction("Save As...", self)
+        self.save_as_action.setShortcut("Ctrl+Shift+S")
+        self.save_as_action.triggered.connect(self.save_file_as)
 
-        form_layout.addWidget(QLabel("Name:"), 0, 0)
-        form_layout.addWidget(self.name_input, 0, 1)
-        form_layout.addWidget(QLabel("Age:"), 1, 0)
-        form_layout.addWidget(self.age_input, 1, 1)
-        form_layout.addWidget(QLabel("City:"), 2, 0)
-        form_layout.addWidget(self.city_box, 2, 1)
-        form_layout.addWidget(QLabel("Job:"), 3, 0)
-        form_layout.addWidget(self.job_input, 3, 1)
-        page_layout.addLayout(form_layout)
+        self.exit_action = QAction("Exit", self)
+        self.exit_action.setShortcut("Ctrl+Q")
+        self.exit_action.triggered.connect(self.close)
 
-        button_layout = QHBoxLayout()
-        self.save_button = QPushButton("Save")
-        self.clear_button = QPushButton("Clear")
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.clear_button)
-        page_layout.addLayout(button_layout)
+    def _build_menus(self):
+        file_menu = self.menuBar().addMenu("File")
+        file_menu.addAction(self.new_action)
+        file_menu.addAction(self.open_action)
+        file_menu.addAction(self.save_action)
+        file_menu.addAction(self.save_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.exit_action)
 
-        self.result_label = QLabel("No profile submitted yet.")
-        page_layout.addWidget(self.result_label)
+    def _build_toolbar(self):
+        toolbar = self.addToolBar("Main")
+        toolbar.addAction(self.new_action)
+        toolbar.addAction(self.open_action)
+        toolbar.addAction(self.save_action)
 
-        self.save_button.clicked.connect(self.save_profile)
-        self.clear_button.clicked.connect(self.clear_form)
-        self.name_input.textChanged.connect(self.update_save_state)
-        self.age_input.textChanged.connect(self.update_save_state)
-        self.job_input.textChanged.connect(self.update_save_state)
-        self.update_save_state()
+    def on_text_changed(self):
+        length = len(self.editor.toPlainText())
+        self.statusBar().showMessage(f"Length: {length}")
 
-    def is_valid_age(self, age_text):
-        return age_text.isdigit() and 1 <= int(age_text) <= 120
-
-    def update_save_state(self):
-        has_name = bool(self.name_input.text().strip())
-        has_job = bool(self.job_input.text().strip())
-        valid_age = self.is_valid_age(self.age_input.text().strip())
-        self.save_button.setEnabled(has_name and has_job and valid_age)
-
-    def save_profile(self):
-        name = self.name_input.text().strip()
-        age = self.age_input.text().strip()
-        city = self.city_box.currentText()
-        job = self.job_input.text().strip()
-
-        if not name:
-            self.result_label.setText("Please enter a valid name.")
+    def new_file(self):
+        if not self._confirm_discard_changes():
             return
-        if not self.is_valid_age(age):
-            self.result_label.setText("Please enter a valid age (1-120).")
-            return
-        if not job:
-            self.result_label.setText("Please enter a valid job title.")
-            return
+        self.editor.clear()
+        self.current_path = None
+        self.statusBar().showMessage("New file")
 
-        self.result_label.setText(f"Saved: {name}, {age}, {city}, {job}")
+    def open_file(self):
+        if not self._confirm_discard_changes():
+            return
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open File",
+            "",
+            "Text Files (*.txt);;All Files (*)",
+        )
+        if not file_path:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as handle:
+                self.editor.setPlainText(handle.read())
+            self.current_path = file_path
+            self.statusBar().showMessage(f"Opened: {file_path}")
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Failed to open file: {exc}")
 
-    def clear_form(self):
-        self.name_input.clear()
-        self.age_input.clear()
-        self.job_input.clear()
-        self.city_box.setCurrentIndex(0)
-        self.result_label.setText("No profile submitted yet.")
+    def save_file(self):
+        if not self.current_path:
+            self.save_file_as()
+            return
+        try:
+            with open(self.current_path, "w", encoding="utf-8") as handle:
+                handle.write(self.editor.toPlainText())
+            self.statusBar().showMessage(f"Saved: {self.current_path}")
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Failed to save file: {exc}")
+
+    def save_file_as(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save File As",
+            "",
+            "Text Files (*.txt);;All Files (*)",
+        )
+        if not file_path:
+            return
+        self.current_path = file_path
+        self.save_file()
+
+    def _confirm_discard_changes(self):
+        if not self.editor.document().isModified():
+            return True
+        reply = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            "You have unsaved changes. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
 
 
 def main():
