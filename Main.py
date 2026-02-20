@@ -1,4 +1,5 @@
 import sys
+import re
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -8,6 +9,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QComboBox,
     QTextEdit,
     QPushButton,
     QTableWidget,
@@ -52,12 +54,79 @@ class MainWindow(QMainWindow):
         page_layout.addLayout(search_row)
 
         form_layout = QFormLayout()
-        self.plate_input = QLineEdit()
+        plate_row_widget = QWidget()
+        plate_row = QHBoxLayout(plate_row_widget)
+        plate_row.setContentsMargins(0, 0, 0, 0)
+
+        self.plate_first_two_input = QLineEdit()
+        self.plate_first_two_input.setPlaceholderText("12")
+        self.plate_first_two_input.setMaxLength(2)
+        self.plate_first_two_input.setFixedWidth(60)
+
+        self.plate_letter_input = QComboBox()
+        self.plate_letter_input.addItems(
+            [
+                "الف",
+                "ب",
+                "پ",
+                "ت",
+                "ث",
+                "ج",
+                "چ",
+                "ح",
+                "خ",
+                "د",
+                "ذ",
+                "ر",
+                "ز",
+                "ژ",
+                "س",
+                "ش",
+                "ص",
+                "ض",
+                "ط",
+                "ظ",
+                "ع",
+                "غ",
+                "ف",
+                "ق",
+                "ک",
+                "گ",
+                "ل",
+                "م",
+                "ن",
+                "و",
+                "ه",
+                "ی",
+            ]
+        )
+        self.plate_letter_input.setFixedWidth(70)
+
+        self.plate_three_digits_input = QLineEdit()
+        self.plate_three_digits_input.setPlaceholderText("345")
+        self.plate_three_digits_input.setMaxLength(3)
+        self.plate_three_digits_input.setFixedWidth(70)
+
+        iran_label = QLabel("ایران")
+        iran_label.setStyleSheet("font-weight: bold;")
+
+        self.plate_region_two_input = QLineEdit()
+        self.plate_region_two_input.setPlaceholderText("67")
+        self.plate_region_two_input.setMaxLength(2)
+        self.plate_region_two_input.setFixedWidth(60)
+
+        plate_row.addWidget(self.plate_first_two_input)
+        plate_row.addWidget(self.plate_letter_input)
+        plate_row.addWidget(self.plate_three_digits_input)
+        plate_row.addWidget(iran_label)
+        plate_row.addWidget(self.plate_region_two_input)
+        plate_row.addStretch(1)
+
         self.owner_input = QLineEdit()
         self.car_input = QLineEdit()
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(80)
-        form_layout.addRow("Plate Number:", self.plate_input)
+        form_layout.addRow("Plate Number:", plate_row_widget)
         form_layout.addRow("Owner Name:", self.owner_input)
         form_layout.addRow("Car Model:", self.car_input)
         form_layout.addRow("Notes:", self.notes_input)
@@ -89,9 +158,24 @@ class MainWindow(QMainWindow):
         self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
         page_layout.addWidget(self.table)
 
+    def _normalize_digits(self, value: str) -> str:
+        translation_table = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+        return value.translate(translation_table)
+
+    def _read_plate_parts(self) -> tuple[str, str, str, str]:
+        first_two = self._normalize_digits(self.plate_first_two_input.text().strip())
+        letter = self.plate_letter_input.currentText().strip()
+        three_digits = self._normalize_digits(self.plate_three_digits_input.text().strip())
+        region_two = self._normalize_digits(self.plate_region_two_input.text().strip())
+        return first_two, letter, three_digits, region_two
+
+    def _build_plate_number(self) -> str:
+        first_two, letter, three_digits, region_two = self._read_plate_parts()
+        return f"{first_two.zfill(2)} {letter} {three_digits.zfill(3)} ایران {region_two.zfill(2)}"
+
     def _read_form(self):
         return {
-            "plate_number": self.plate_input.text().strip(),
+            "plate_number": self._build_plate_number(),
             "owner_name": self.owner_input.text().strip(),
             "car_model": self.car_input.text().strip(),
             "notes": self.notes_input.toPlainText().strip(),
@@ -99,11 +183,37 @@ class MainWindow(QMainWindow):
 
     def _validate_form(self) -> bool:
         data = self._read_form()
-        if not data["plate_number"] or not data["owner_name"] or not data["car_model"]:
+        first_two, _, three_digits, region_two = self._read_plate_parts()
+
+        if not first_two or not three_digits or not region_two:
             QMessageBox.warning(
                 self,
                 "Validation Error",
-                "Plate number, owner name and car model are required.",
+                "لطفا همه بخش‌های پلاک را تکمیل کنید.",
+            )
+            return False
+
+        if not (first_two.isdigit() and three_digits.isdigit() and region_two.isdigit()):
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                "بخش‌های عددی پلاک باید فقط شامل رقم باشند.",
+            )
+            return False
+
+        if len(first_two) > 2 or len(three_digits) > 3 or len(region_two) > 2:
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                "فرمت پلاک باید حداکثر ۲ رقم + حرف + ۳ رقم + ایران + ۲ رقم باشد.",
+            )
+            return False
+
+        if not data["owner_name"] or not data["car_model"]:
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                "Owner name and car model are required.",
             )
             return False
         return True
@@ -193,14 +303,36 @@ class MainWindow(QMainWindow):
             return
         row = selected_items[0].row()
         self.selected_record_id = int(self.table.item(row, 0).text())
-        self.plate_input.setText(self.table.item(row, 1).text())
+        plate_text = self.table.item(row, 1).text()
+        self._fill_plate_fields(plate_text)
         self.owner_input.setText(self.table.item(row, 2).text())
         self.car_input.setText(self.table.item(row, 3).text())
         self.notes_input.setPlainText(self.table.item(row, 4).text())
 
+    def _fill_plate_fields(self, plate_text: str):
+        pattern = r"^\s*(\d{2})\s+(\S+)\s+(\d{3})\s+ایران\s+(\d{2})\s*$"
+        match = re.match(pattern, plate_text)
+        if not match:
+            self.plate_first_two_input.clear()
+            self.plate_three_digits_input.clear()
+            self.plate_region_two_input.clear()
+            return
+
+        first_two, letter, three_digits, region_two = match.groups()
+        self.plate_first_two_input.setText(first_two)
+        self.plate_three_digits_input.setText(three_digits)
+        self.plate_region_two_input.setText(region_two)
+
+        index = self.plate_letter_input.findText(letter)
+        if index >= 0:
+            self.plate_letter_input.setCurrentIndex(index)
+
     def clear_form(self):
         self.selected_record_id = None
-        self.plate_input.clear()
+        self.plate_first_two_input.clear()
+        self.plate_three_digits_input.clear()
+        self.plate_region_two_input.clear()
+        self.plate_letter_input.setCurrentIndex(0)
         self.owner_input.clear()
         self.car_input.clear()
         self.notes_input.clear()
