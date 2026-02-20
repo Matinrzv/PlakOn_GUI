@@ -2,90 +2,210 @@ import sys
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
-    QVBoxLayout,
     QWidget,
-    QComboBox,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QHBoxLayout,
-    QGridLayout,
     QTextEdit,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QMessageBox,
+    QHeaderView,
 )
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+from backend.service import PlateRecordService
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Test")
-        self.resize(400,400)
+        self.service = PlateRecordService()
+        self.selected_record_id: int | None = None
+        self.setWindowTitle("PlakOn Panel")
+        self.resize(980, 620)
+        self._build_ui()
+        self.load_records()
+        self.statusBar().showMessage("Panel ready")
+
+    def _build_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        self.page_layout = QVBoxLayout()
-        central_widget.setLayout(self.page_layout)
-        self.text_input = QTextEdit()
-        self.text_input.setPlaceholderText("write anythings...")
-        self.page_layout.addWidget(self.text_input)
-        self._build_actions()
-        self._build_menus()
-        self._build_toolbar()
-        self.statusBar().showMessage("Ready")
-        self.text_input.textChanged.connect(self.on_text_changed)
+        page_layout = QVBoxLayout(central_widget)
 
-    def _build_actions(self):
-        self.new_action = QAction("New",self)
-        self.exit_action = QAction("Exit",self)
-        self.new_action.triggered.connect(self.text_input.clear)
-        self.exit_action.triggered.connect(self.close)
-        self.open_action = QAction("Open...", self)
-        self.save_action = QAction("Save", self)
-        self.open_action.triggered.connect(self.open_file)
-        self.save_action.triggered.connect(self.save_file)
+        title = QLabel("PlakOn Management Panel")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        page_layout.addWidget(title)
 
+        search_row = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search by plate number...")
+        search_button = QPushButton("Search")
+        reset_button = QPushButton("Reset")
+        search_button.clicked.connect(self.search_records)
+        reset_button.clicked.connect(self.reset_search)
+        search_row.addWidget(self.search_input)
+        search_row.addWidget(search_button)
+        search_row.addWidget(reset_button)
+        page_layout.addLayout(search_row)
 
-    def _build_menus(self):
-        file_menu = self.menuBar().addMenu("File")
-        file_menu.addAction(self.new_action)
-        file_menu.addAction(self.open_action)
-        file_menu.addAction(self.save_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.exit_action)
+        form_layout = QFormLayout()
+        self.plate_input = QLineEdit()
+        self.owner_input = QLineEdit()
+        self.car_input = QLineEdit()
+        self.notes_input = QTextEdit()
+        self.notes_input.setMaximumHeight(80)
+        form_layout.addRow("Plate Number:", self.plate_input)
+        form_layout.addRow("Owner Name:", self.owner_input)
+        form_layout.addRow("Car Model:", self.car_input)
+        form_layout.addRow("Notes:", self.notes_input)
+        page_layout.addLayout(form_layout)
 
-    def _build_toolbar(self):
-        toolbar = self.addToolBar("Main")
-        toolbar.addAction(self.new_action)
-        toolbar.addAction(self.open_action)
-        toolbar.addAction(self.save_action)
-        toolbar.addAction(self.exit_action)
+        button_row = QHBoxLayout()
+        add_button = QPushButton("Add")
+        update_button = QPushButton("Update")
+        delete_button = QPushButton("Delete")
+        clear_button = QPushButton("Clear Form")
+        add_button.clicked.connect(self.add_record)
+        update_button.clicked.connect(self.update_record)
+        delete_button.clicked.connect(self.delete_record)
+        clear_button.clicked.connect(self.clear_form)
+        button_row.addWidget(add_button)
+        button_row.addWidget(update_button)
+        button_row.addWidget(delete_button)
+        button_row.addWidget(clear_button)
+        page_layout.addLayout(button_row)
 
-    def on_text_changed(self):
-        length = len(self.text_input.toPlainText())
-        self.statusBar().showMessage(f"Length: {length}")
-    def open_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open File", "", "Text Files (*.txt);;All Files (*)"
-    )
-        if not file_path:
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(
+            ["ID", "Plate Number", "Owner Name", "Car Model", "Notes", "Created At"]
+        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
+        page_layout.addWidget(self.table)
+
+    def _read_form(self):
+        return {
+            "plate_number": self.plate_input.text().strip(),
+            "owner_name": self.owner_input.text().strip(),
+            "car_model": self.car_input.text().strip(),
+            "notes": self.notes_input.toPlainText().strip(),
+        }
+
+    def _validate_form(self) -> bool:
+        data = self._read_form()
+        if not data["plate_number"] or not data["owner_name"] or not data["car_model"]:
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                "Plate number, owner name and car model are required.",
+            )
+            return False
+        return True
+
+    def load_records(self, records=None):
+        records = records if records is not None else self.service.list_records()
+        self.table.setRowCount(len(records))
+        for row_index, record in enumerate(records):
+            values = [
+                str(record["id"]),
+                record["plate_number"],
+                record["owner_name"],
+                record["car_model"],
+                record["notes"],
+                record["created_at"],
+            ]
+            for col_index, value in enumerate(values):
+                self.table.setItem(row_index, col_index, QTableWidgetItem(value))
+        self.statusBar().showMessage(f"{len(records)} record(s) loaded")
+
+    def search_records(self):
+        query = self.search_input.text().strip()
+        if not query:
+            self.load_records()
             return
-        try:
-            with open(file_path, "r", encoding="utf-8") as handle:
-                self.text_input.setPlainText(handle.read())
-            self.current_path = file_path
-            self.statusBar().showMessage(f"Opened: {file_path}")
-        except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Failed to open file: {exc}")
+        self.load_records(self.service.search_by_plate(query))
 
-    def save_file(self):
-        if not getattr(self, "current_path", None):
-            self.statusBar().showMessage("No file path yet (Save As in next step)")
+    def reset_search(self):
+        self.search_input.clear()
+        self.load_records()
+
+    def add_record(self):
+        if not self._validate_form():
             return
-        try:
-            with open(self.current_path, "w", encoding="utf-8") as handle:
-                handle.write(self.text_input.toPlainText())
-            self.statusBar().showMessage(f"Saved: {self.current_path}")
-        except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Failed to save file: {exc}")
+        data = self._read_form()
+        self.service.add_record(
+            data["plate_number"],
+            data["owner_name"],
+            data["car_model"],
+            data["notes"],
+        )
+        self.clear_form()
+        self.load_records()
+
+    def update_record(self):
+        if self.selected_record_id is None:
+            QMessageBox.information(self, "No Selection", "Please select a row to update.")
+            return
+        if not self._validate_form():
+            return
+        data = self._read_form()
+        updated = self.service.update_record(
+            self.selected_record_id,
+            data["plate_number"],
+            data["owner_name"],
+            data["car_model"],
+            data["notes"],
+        )
+        if updated:
+            self.load_records()
+            self.statusBar().showMessage(f"Record {self.selected_record_id} updated")
+        else:
+            QMessageBox.warning(self, "Error", "Selected record was not found.")
+
+    def delete_record(self):
+        if self.selected_record_id is None:
+            QMessageBox.information(self, "No Selection", "Please select a row to delete.")
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Delete Record",
+            f"Delete record #{self.selected_record_id}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        deleted = self.service.delete_record(self.selected_record_id)
+        if deleted:
+            self.clear_form()
+            self.load_records()
+        else:
+            QMessageBox.warning(self, "Error", "Selected record was not found.")
+
+    def on_table_selection_changed(self):
+        selected_items = self.table.selectedItems()
+        if not selected_items:
+            return
+        row = selected_items[0].row()
+        self.selected_record_id = int(self.table.item(row, 0).text())
+        self.plate_input.setText(self.table.item(row, 1).text())
+        self.owner_input.setText(self.table.item(row, 2).text())
+        self.car_input.setText(self.table.item(row, 3).text())
+        self.notes_input.setPlainText(self.table.item(row, 4).text())
+
+    def clear_form(self):
+        self.selected_record_id = None
+        self.plate_input.clear()
+        self.owner_input.clear()
+        self.car_input.clear()
+        self.notes_input.clear()
+        self.table.clearSelection()
+        self.statusBar().showMessage("Form cleared")
 
 
 def main():
