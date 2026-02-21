@@ -1,22 +1,25 @@
-import sys
 import os
-from PyQt6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QStackedWidget,
-    QLineEdit,
-    QComboBox,
-    QFormLayout,
-    QMessageBox,
-    QHBoxLayout,
-)
+import sys
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from Main import MainWindow as PlatePanelWindow
+from backend.auth_service import AuthService
 
 
 class MainWindow(QMainWindow):
@@ -25,7 +28,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PlakOn")
         self.setFixedSize(420, 520)
         self.stacked_widget = QStackedWidget()
-        self.users = {}
+        self.auth_service = AuthService()
+        self.panel_window: PlatePanelWindow | None = None
 
         self.setCentralWidget(self.stacked_widget)
 
@@ -33,19 +37,18 @@ class MainWindow(QMainWindow):
         self.auth_page = QWidget()
         self.setup_video_page()
         self.setup_auth_page()
-        self.main_page = QWidget()
-        self.setup_main_page()
 
         self.stacked_widget.addWidget(self.video_page)
         self.stacked_widget.addWidget(self.auth_page)
-        self.stacked_widget.addWidget(self.main_page)
         self.stacked_widget.setCurrentWidget(self.video_page)
 
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             QMainWindow {
                 background-color: black;
             }
-        """)
+            """
+        )
 
     def setup_video_page(self):
         layout = QVBoxLayout()
@@ -63,24 +66,17 @@ class MainWindow(QMainWindow):
         if os.path.exists(video_path):
             self.player.setSource(QUrl.fromLocalFile(os.path.abspath(video_path)))
             self.player.play()
-            print(f"در حال پخش ویدیو: {video_path}")
             self.player.mediaStatusChanged.connect(self.on_video_finished)
         else:
-            print(f"خطا: فایل ویدیو پیدا نشد!")
             QTimer.singleShot(100, self.go_to_auth_page)
 
     def on_video_finished(self, status):
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
-            print("ویدیو به پایان رسید")
             QTimer.singleShot(500, self.go_to_auth_page)
 
     def go_to_auth_page(self):
         self.stacked_widget.setCurrentWidget(self.auth_page)
         self.setWindowTitle("PlakOn | ورود / ثبت نام")
-
-    def go_to_main_page(self):
-        self.stacked_widget.setCurrentWidget(self.main_page)
-        self.setWindowTitle("PlakOn")
 
     def setup_auth_page(self):
         layout = QVBoxLayout()
@@ -108,6 +104,7 @@ class MainWindow(QMainWindow):
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("رمز عبور")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+
         form.addRow("نوع حساب:", self.account_type)
         form.addRow("نام:", self.name_input)
         form.addRow("شناسه:", self.identifier_input)
@@ -130,7 +127,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(btn_row)
         layout.addStretch(2)
 
-        self.auth_page.setStyleSheet("""
+        self.auth_page.setStyleSheet(
+            """
             QWidget {
                 background: qlineargradient(
                     x1:0, y1:0, x2:1.2, y2:1.2,
@@ -155,61 +153,9 @@ class MainWindow(QMainWindow):
             QPushButton:hover {
                 background-color: #1764B3;
             }
-        """)
+            """
+        )
 
-    def setup_main_page(self):
-        layout = QVBoxLayout()
-        self.main_page.setLayout(layout)
-        layout.setContentsMargins(10, 15, 10, 15)
-        title_label = QLabel("PlakOn")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("""
-            font-size: 28px;
-            font-weight: bold;
-            color: #0033CC;
-            margin-top: 20px;
-            margin-bottom: 5px;
-        """)
-        subtitle_label = QLabel("تشخیص پلاک")
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle_label.setStyleSheet("""
-            font-size: 14px;
-            color: #666666;
-            margin-bottom: 15px;
-            font-weight: normal;
-        """)
-        start_button = QPushButton("شروع")
-        start_button.setFixedSize(120, 35)
-        start_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        start_button.clicked.connect(self.start_program)
-        layout.addStretch(1)
-        layout.addWidget(title_label)
-        layout.addWidget(subtitle_label)
-        layout.addSpacing(10)
-        layout.addWidget(start_button, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addStretch(2)
-        self.main_page.setStyleSheet("""
-            QWidget {
-                background: qlineargradient(
-                    x1:0, y1:0, x2:1.5, y2:1.5,
-                    stop:0 #FFFFFF,
-                    stop:1 #E6F0FF
-                );
-            }
-        """)
-    
     def register_user(self):
         account_type = self.account_type.currentText().strip()
         name = self.name_input.text().strip()
@@ -221,34 +167,27 @@ class MainWindow(QMainWindow):
             self.show_message("لطفا تمام فیلدها را تکمیل کنید.")
             return
 
-        key = (account_type, username)
-        if key in self.users:
-            self.show_message("این نام کاربری قبلا ثبت شده است.")
-            return
-
-        self.users[key] = {
-            "name": name,
-            "identifier": identifier,
-            "password": password,
-        }
-        self.show_message("ثبت نام با موفقیت انجام شد. حالا وارد شوید.")
+        ok, message = self.auth_service.register_user(
+            account_type, name, identifier, username, password
+        )
+        self.show_message(message)
+        if ok:
+            self.name_input.clear()
+            self.identifier_input.clear()
 
     def login_user(self):
         account_type = self.account_type.currentText().strip()
         username = self.username_input.text().strip()
         password = self.password_input.text().strip()
-        key = (account_type, username)
-        user = self.users.get(key)
-        if not user or user["password"] != password:
+
+        user = self.auth_service.authenticate_user(account_type, username, password)
+        if not user:
             self.show_message("اطلاعات ورود اشتباه است.")
             return
 
-        self.go_to_main_page()
-        self.statusBar().showMessage(f"{account_type} وارد شد: {user['name']}")
-
-    def start_program(self):
-        print("برنامه شروع شد!")
-        self.show_message("در حال آماده‌سازی...")
+        self.panel_window = PlatePanelWindow(current_user=user)
+        self.panel_window.show()
+        self.close()
 
     def show_message(self, message):
         msg = QMessageBox(self)
@@ -257,11 +196,13 @@ class MainWindow(QMainWindow):
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
 
+
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

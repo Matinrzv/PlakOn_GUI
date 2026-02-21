@@ -1,5 +1,5 @@
-import sys
 import re
+import sys
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -18,16 +18,19 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 
+from backend.auth_service import AuthService
 from backend.service import PlateRecordService
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, current_user: dict):
         super().__init__()
+        self.current_user = current_user
         self.service = PlateRecordService()
         self.selected_record_id: int | None = None
+
         self.setWindowTitle("PlakOn Panel")
-        self.resize(980, 620)
+        self.resize(1050, 650)
         self._build_ui()
         self.load_records()
         self.statusBar().showMessage("Panel ready")
@@ -39,7 +42,13 @@ class MainWindow(QMainWindow):
 
         title = QLabel("PlakOn Management Panel")
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        user_caption = QLabel(
+            f"کاربر فعال: {self.current_user['name']} | {self.current_user['account_type']} | {self.current_user['username']}"
+        )
+        user_caption.setStyleSheet("font-size: 12px; color: #4a5a6a;")
+
         page_layout.addWidget(title)
+        page_layout.addWidget(user_caption)
 
         search_row = QHBoxLayout()
         self.search_input = QLineEdit()
@@ -122,34 +131,46 @@ class MainWindow(QMainWindow):
         plate_row.addWidget(self.plate_region_two_input)
         plate_row.addStretch(1)
 
-        self.owner_input = QLineEdit()
         self.car_input = QLineEdit()
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(80)
+
         form_layout.addRow("Plate Number:", plate_row_widget)
-        form_layout.addRow("Owner Name:", self.owner_input)
         form_layout.addRow("Car Model:", self.car_input)
         form_layout.addRow("Notes:", self.notes_input)
         page_layout.addLayout(form_layout)
 
         button_row = QHBoxLayout()
-        add_button = QPushButton("Add")
+        entry_button = QPushButton("ثبت ورود")
+        exit_button = QPushButton("ثبت خروج")
         update_button = QPushButton("Update")
         delete_button = QPushButton("Delete")
         clear_button = QPushButton("Clear Form")
-        add_button.clicked.connect(self.add_record)
+
+        entry_button.clicked.connect(self.add_record)
+        exit_button.clicked.connect(self.mark_exit)
         update_button.clicked.connect(self.update_record)
         delete_button.clicked.connect(self.delete_record)
         clear_button.clicked.connect(self.clear_form)
-        button_row.addWidget(add_button)
+
+        button_row.addWidget(entry_button)
+        button_row.addWidget(exit_button)
         button_row.addWidget(update_button)
         button_row.addWidget(delete_button)
         button_row.addWidget(clear_button)
         page_layout.addLayout(button_row)
 
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(
-            ["ID", "Plate Number", "Owner Name", "Car Model", "Notes", "Created At"]
+            [
+                "ID",
+                "Plate Number",
+                "Car Model",
+                "Notes",
+                "Entry Time",
+                "Exit Time",
+                "Created At",
+            ]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
@@ -176,7 +197,6 @@ class MainWindow(QMainWindow):
     def _read_form(self):
         return {
             "plate_number": self._build_plate_number(),
-            "owner_name": self.owner_input.text().strip(),
             "car_model": self.car_input.text().strip(),
             "notes": self.notes_input.toPlainText().strip(),
         }
@@ -186,18 +206,14 @@ class MainWindow(QMainWindow):
         first_two, _, three_digits, region_two = self._read_plate_parts()
 
         if not first_two or not three_digits or not region_two:
-            QMessageBox.warning(
-                self,
-                "Validation Error",
-                "لطفا همه بخش‌های پلاک را تکمیل کنید.",
-            )
+            QMessageBox.warning(self, "Validation Error", "لطفا همه بخش های پلاک را تکمیل کنید.")
             return False
 
         if not (first_two.isdigit() and three_digits.isdigit() and region_two.isdigit()):
             QMessageBox.warning(
                 self,
                 "Validation Error",
-                "بخش‌های عددی پلاک باید فقط شامل رقم باشند.",
+                "بخش های عددی پلاک باید فقط شامل رقم باشند.",
             )
             return False
 
@@ -205,30 +221,31 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Validation Error",
-                "فرمت پلاک باید حداکثر ۲ رقم + حرف + ۳ رقم + ایران + ۲ رقم باشد.",
+                "فرمت پلاک باید حداکثر 2 رقم + حرف + 3 رقم + ایران + 2 رقم باشد.",
             )
             return False
 
-        if not data["owner_name"] or not data["car_model"]:
-            QMessageBox.warning(
-                self,
-                "Validation Error",
-                "Owner name and car model are required.",
-            )
+        if not data["car_model"]:
+            QMessageBox.warning(self, "Validation Error", "Car model is required.")
             return False
         return True
 
     def load_records(self, records=None):
-        records = records if records is not None else self.service.list_records()
+        records = (
+            records
+            if records is not None
+            else self.service.list_records(self.current_user["id"])
+        )
         self.table.setRowCount(len(records))
         for row_index, record in enumerate(records):
             values = [
                 str(record["id"]),
-                record["plate_number"],
-                record["owner_name"],
-                record["car_model"],
-                record["notes"],
-                record["created_at"],
+                record["plate_number"] or "",
+                record["car_model"] or "",
+                record["notes"] or "",
+                record["entry_time"] or "",
+                record["exit_time"] or "",
+                record["created_at"] or "",
             ]
             for col_index, value in enumerate(values):
                 self.table.setItem(row_index, col_index, QTableWidgetItem(value))
@@ -239,7 +256,7 @@ class MainWindow(QMainWindow):
         if not query:
             self.load_records()
             return
-        self.load_records(self.service.search_by_plate(query))
+        self.load_records(self.service.search_by_plate(self.current_user["id"], query))
 
     def reset_search(self):
         self.search_input.clear()
@@ -250,13 +267,24 @@ class MainWindow(QMainWindow):
             return
         data = self._read_form()
         self.service.add_record(
+            self.current_user["id"],
             data["plate_number"],
-            data["owner_name"],
             data["car_model"],
             data["notes"],
         )
         self.clear_form()
         self.load_records()
+
+    def mark_exit(self):
+        if self.selected_record_id is None:
+            QMessageBox.information(self, "No Selection", "Please select a row to mark exit.")
+            return
+        updated = self.service.set_exit_time(self.selected_record_id, self.current_user["id"])
+        if not updated:
+            QMessageBox.warning(self, "Error", "Exit was already set or record not found.")
+            return
+        self.load_records()
+        self.statusBar().showMessage(f"Exit time ثبت شد برای رکورد {self.selected_record_id}")
 
     def update_record(self):
         if self.selected_record_id is None:
@@ -267,8 +295,8 @@ class MainWindow(QMainWindow):
         data = self._read_form()
         updated = self.service.update_record(
             self.selected_record_id,
+            self.current_user["id"],
             data["plate_number"],
-            data["owner_name"],
             data["car_model"],
             data["notes"],
         )
@@ -290,7 +318,7 @@ class MainWindow(QMainWindow):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        deleted = self.service.delete_record(self.selected_record_id)
+        deleted = self.service.delete_record(self.selected_record_id, self.current_user["id"])
         if deleted:
             self.clear_form()
             self.load_records()
@@ -305,9 +333,8 @@ class MainWindow(QMainWindow):
         self.selected_record_id = int(self.table.item(row, 0).text())
         plate_text = self.table.item(row, 1).text()
         self._fill_plate_fields(plate_text)
-        self.owner_input.setText(self.table.item(row, 2).text())
-        self.car_input.setText(self.table.item(row, 3).text())
-        self.notes_input.setPlainText(self.table.item(row, 4).text())
+        self.car_input.setText(self.table.item(row, 2).text())
+        self.notes_input.setPlainText(self.table.item(row, 3).text())
 
     def _fill_plate_fields(self, plate_text: str):
         pattern = r"^\s*(\d{2})\s+(\S+)\s+(\d{3})\s+ایران\s+(\d{2})\s*$"
@@ -333,16 +360,23 @@ class MainWindow(QMainWindow):
         self.plate_three_digits_input.clear()
         self.plate_region_two_input.clear()
         self.plate_letter_input.setCurrentIndex(0)
-        self.owner_input.clear()
         self.car_input.clear()
         self.notes_input.clear()
         self.table.clearSelection()
         self.statusBar().showMessage("Form cleared")
 
 
+def _ensure_demo_user() -> dict:
+    auth = AuthService()
+    auth.register_user("شخص", "دمو", "0000000000", "demo", "demo")
+    user = auth.authenticate_user("شخص", "demo", "demo")
+    return user
+
+
 def main():
     app = QApplication(sys.argv)
-    window = MainWindow()
+    user = _ensure_demo_user()
+    window = MainWindow(current_user=user)
     window.show()
     sys.exit(app.exec())
 
