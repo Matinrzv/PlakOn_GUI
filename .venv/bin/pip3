@@ -1,4 +1,4 @@
-#!/media/matinrzv/abb26c1e-6365-4c4f-9dd0-1f4661bde117/PlakOn_GUI/.venv/bin/python3
+#!/media/matinrzv/abb26c1e-6365-4c4f-9dd0-1f4661bde117/PlakOn_GUI/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
