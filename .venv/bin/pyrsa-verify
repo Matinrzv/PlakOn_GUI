@@ -1,0 +1,6 @@
+#!/media/matinrzv/abb26c1e-6365-4c4f-9dd0-1f4661bde117/PlakOn_GUI/.venv/bin/python
+import sys
+from rsa.cli import verify
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(verify())
