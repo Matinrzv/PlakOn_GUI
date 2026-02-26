@@ -30,20 +30,34 @@ import sqlite3
 #     print(row)
 # conn.close()
 
-conn = sqlite3.connect("employees.db")
+# conn = sqlite3.connect("employees.db")
+# cursor = conn.cursor()
+# cursor.execute("SELECT * FROM employees")
+# rows = cursor.fetchall()
+# for row in rows:
+#     name = row[0]
+#     salary = row[1]
+#     leaves = row[2]
+#     if salary > 5000:
+#         salary_status = "High"
+#     else:
+#         salary_status = "Normal"
+#     if leaves > 3:
+#         leave_status = "Rejected"
+#     else:
+#         leave_status = "Approved"
+#     print(f"{name}: Salary Status: {salary_status}, Leave Status: {leave_status}")
+
+from openpyxl import load_workbook
+import sqlite3
+wb = load_workbook("./employee_system/employee_data.xlsx")
+sheet = wb.active
+conn = sqlite3.connect("./employee_system/employees.db")
 cursor = conn.cursor()
-cursor.execute("SELECT * FROM employees")
-rows = cursor.fetchall()
-for row in rows:
+for row in sheet.iter_rows(min_row=2, values_only=True):
     name = row[0]
     salary = row[1]
-    leaves = row[2]
-    if salary > 5000:
-        salary_status = "High"
-    else:
-        salary_status = "Normal"
-    if leaves > 3:
-        leave_status = "Rejected"
-    else:
-        leave_status = "Approved"
-    print(f"{name}: Salary Status: {salary_status}, Leave Status: {leave_status}")
+    leave = row[2]
+    cursor.execute("INSERT INTO employees (name, salary, leaves) VALUES (?, ?, ?)", (name, salary, leave))
+conn.commit()
+conn.close()
