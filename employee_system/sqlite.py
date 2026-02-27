@@ -62,21 +62,65 @@ import sqlite3
 # conn.commit()
 # conn.close()
 
+# import sqlite3
+# from openpyxl import Workbook
+# conn = sqlite3.connect("./employee_system/employees.db")
+# cursor = conn.cursor()
+# cursor.execute("SELECT * FROM employees")
+# rows = cursor.fetchall()
+# wb = Workbook()
+# sheet = wb.active
+# sheet.append(["Name", "Salary Status", "Leave Status"])
+# for row in rows:
+#     name = row[0]
+#     salary = row[1]
+#     leave = row[2]
+#     salary_status = "High" if salary > 5000 else "Normal"
+#     leave_status = "Rejected" if leave > 3 else "Approved"
+#     sheet.append([name, salary_status, leave_status])
+# wb.save("./employee_system/employee_report.xlsx")
+# conn.close()
+
+from flask import Flask, jsonify
 import sqlite3
-from openpyxl import Workbook
-conn = sqlite3.connect("./employee_system/employees.db")
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM employees")
-rows = cursor.fetchall()
-wb = Workbook()
-sheet = wb.active
-sheet.append(["Name", "Salary Status", "Leave Status"])
-for row in rows:
-    name = row[0]
-    salary = row[1]
-    leave = row[2]
-    salary_status = "High" if salary > 5000 else "Normal"
-    leave_status = "Rejected" if leave > 3 else "Approved"
-    sheet.append([name, salary_status, leave_status])
-wb.save("./employee_system/employee_report.xlsx")
-conn.close()
+
+app = Flask(__name__)
+
+# @app.route("/employees", methods=["GET"])
+# def get_employees():
+#     conn = sqlite3.connect("./employee_system/employees.db")
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT * FROM employees")
+#     rows = cursor.fetchall()
+#     conn.close()
+#     return jsonify([{"name": row[0], "salary": row[1], "leaves": row[2]} for row in rows])
+@app.route("/report")
+def get_report():
+
+    conn = sqlite3.connect("./employee_system/employees.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM employees")
+    rows = cursor.fetchall()
+
+    report = []
+
+    for row in rows:
+
+        name = row[0]
+        salary = row[1]
+        leave = row[2]
+
+        salary_level = "High" if salary > 20000000 else "Normal"
+        leave_status = "Long" if leave > 3 else "Normal"
+
+        report.append({
+            "name": name,
+            "salary": salary_level,
+            "leave": leave_status
+        })
+
+    conn.close()
+
+    return jsonify(report)
+app.run(debug=True)
